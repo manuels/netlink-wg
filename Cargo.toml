@@ -1,0 +1,21 @@
+[package]
+name = "netlink"
+version = "0.1.0"
+authors = ["Manuel Schölling <manuel.schoelling@gmx.de>"]
+edition = "2018"
+
+[dependencies]
+taikai = { path = "../taikai/rust/taikai" }
+nom = "*"
+byteorder = "*"
+encoding_rs = "*"
+log = "*"
+tuple_utils = "*"
+nix = "*"
+libc = "*"
+tokio = {version = "0.1", features = ["async-await-preview"]}
+bytes = "*"
+mio = "*"
+futures = "*"
+enum_primitive = "*"
+pretty_assertions = "*"

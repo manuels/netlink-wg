@@ -1,0 +1,176 @@
+meta:
+  endian: le
+  id: netlink_generic
+context:
+  seq:
+    - id: wireguard_family
+      type: u16
+    - id: wireguard_version
+      type: u8
+types:
+  nlmsghdr:
+    seq:
+      - id: len
+        type: u32
+      - id:  typ
+        type: u16
+      - id:  flags
+        type: u16
+      - id:  seq
+        type: u32
+      - id:  pid
+        type: u32
+  genl:
+    seq:
+      - id: cmd
+        type: u8
+      - id: version
+        type: u8
+      - id: padding
+        type: u16
+  error:
+    seq:
+      - id: error
+        type: i32
+      - id: cause
+        size: '16' # TODO: should be a nlmsghdr
+  attr:
+    seq:
+      - id: len
+        type: u16
+      - id: typ
+        type: u16
+      - id: value
+        size: self.len - 4
+      - id: padding
+        size: if self.len % 4  == 0 {0} else {(4 - self.len % 4)}
+## wireguard start
+  wg_attr:
+    types:
+      peer:
+        types:
+          peer_attr:
+    #        types:
+    #          allowed_ip:
+    #            seq:
+    #              - id: len
+    #                type: u16
+    #              - id: typ
+    #                type: u16
+    #              - id: family
+    #                type: u16
+    #                if: self.typ == WgAllowedIpAttribute::Family as _
+    #              - id: ipaddr
+    #                size: self.len.saturating_sub(4)
+    #                if: self.typ == WgAllowedIpAttribute::IpAddr as _
+    #              - id: cidr_mask
+    #                type: u8
+    #                if: self.typ == WgAllowedIpAttribute::CidrMask as _
+    #              - id: padding
+    #                size: if self.len % 4 == 0 {0} else {4u16.saturating_sub(self.len % 4)}
+            seq:
+              - id: len
+                type: u16
+              - id: typ
+                type: u16
+              - id: flags
+                if: self.typ == WgPeerAttribute::Flags as _
+                type: u32
+              - id: public_key
+                if: self.typ == WgPeerAttribute::PublicKey as _
+                size: self.len.saturating_sub(4)
+              - id: preshared_key
+                if: self.typ == WgPeerAttribute::PresharedKey as _
+                size: self.len.saturating_sub(4)
+              - id: endpoint
+                if: self.typ == WgPeerAttribute::Endpoint as _
+                size: self.len.saturating_sub(4)
+              - id: persistent_keepalive_interval
+                type: u16
+                if: self.typ == WgPeerAttribute::PersistentKeepaliveInterval as _
+              - id: last_handshake_time
+                size: self.len.saturating_sub(4)
+                if: self.typ == WgPeerAttribute::LastHandshakeTime as _
+              - id: rx_bytes
+                type: u64
+                if: self.typ == WgPeerAttribute::RxBytes as _
+              - id: tx_bytes
+                type: u64
+                if: self.typ == WgPeerAttribute::TxBytes as _
+              - id: allowed_ips
+                #type: allowed_ip
+                size: self.len.saturating_sub(4)
+                if: self.typ == WgPeerAttribute::AllowedIps as _
+                #repeat: eos
+              - id: protocol_version
+                type: u32
+                if: self.typ == WgPeerAttribute::ProtocolVersion as _
+              - id: padding
+                size: if self.len % 4 == 0 {0} else {4u16.saturating_sub(self.len % 4)}
+        seq:
+          - id: len
+            type: u16
+          - id: typ
+            type: u16
+          - id: peer
+            type: peer_attr
+            size: self.len - 4
+            repeat: eos
+          - id: padding
+            size: if self.len % 4 == 0 {0} else {4u16.saturating_sub(self.len % 4)}
+    seq:
+      - id: len
+        type: u16
+      - id: typ
+        type: u16
+      - id: ifindex
+        type: u32
+        if: self.typ == WgDeviceAttribute::IfIndex as _
+      - id: ifname
+        if: self.typ == WgDeviceAttribute::IfName as _
+        size: self.len.saturating_sub(4)
+      - id: flags
+        if: self.typ == WgDeviceAttribute::Flags as _
+        type: u32
+      - id: private_key
+        if: self.typ == WgDeviceAttribute::PrivateKey as _
+        size: self.len.saturating_sub(4)
+      - id: public_key
+        if: self.typ == WgDeviceAttribute::PublicKey as _
+        size: self.len.saturating_sub(4)
+      - id: listen_port
+        type: u16
+        if: self.typ == WgDeviceAttribute::ListenPort as _
+      - id: fwmark
+        type: u32
+        if: self.typ == WgDeviceAttribute::FwMark as _
+      - id: peers
+        type: peer
+        repeat: eos
+        if: self.typ == WgDeviceAttribute::Peers as _
+#        size: self.len.saturating_sub(4)
+      - id: padding
+        size: if self.len % 4 == 0 {0} else {4u16.saturating_sub(self.len % 4)}
+## wireguard end
+seq:
+  - id: header
+    type: nlmsghdr
+  - id: generic
+    type: genl
+    if: self.header.typ != libc::NLMSG_DONE as _ && self.header.typ != libc::NLMSG_ERROR as _
+  - id: error
+    type: error
+    if: self.header.typ == libc::NLMSG_ERROR as _
+  - id: success
+    size: '4'
+    if: self.header.typ == libc::NLMSG_DONE as _
+  - id: attributes
+    type: attr
+    repeat: eos
+    size: self.header.len - 20
+    if: self.header.typ != _ctx.wireguard_family && self.header.typ != libc::NLMSG_DONE as _ && self.header.typ != libc::NLMSG_ERROR as _
+  - id: wg_attributes
+    type: wg_attr
+    repeat: eos
+    size: self.header.len - 20
+    if: 'self.header.typ == _ctx.wireguard_family && self.generic.as_ref().map(|g| g.version == _ctx.wireguard_version) == Some(true)'

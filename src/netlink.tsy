@@ -1,0 +1,14 @@
+meta:
+  endian: le
+  id: nlmsghdr
+seq:
+  - id:  len
+    type: u32
+  - id:  typ
+    type: u16
+  - id:  flags
+    type: u16
+  - id:  seq
+    type: u32
+  - id:  pid
+    type: u32

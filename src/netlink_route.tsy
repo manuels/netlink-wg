@@ -1,0 +1,82 @@
+meta:
+  endian: le
+  id: netlink_route
+types:
+  error:
+    seq:
+      - id: error
+        type: i32
+      - id: cause
+        size: '16' # TODO: should be a nlmsghdr
+  nlmsghdr:
+    seq:
+      - id:  len
+        type: u32
+      - id:  typ
+        type: u16
+      - id:  flags
+        type: u16
+      - id:  seq
+        type: u32
+      - id:  pid
+        type: u32
+  ifinfomsg:
+    seq:
+      - id: family
+        type: u8
+      - id: reserved
+        type: u8
+      - id: typ
+        type: u16
+      - id: index
+        type: u32
+      - id: flags
+        type: u32
+      - id: change
+        type: u32
+  attr:
+    types:
+      subattr:
+        seq:
+          - id: len
+            type: u16
+          - id: typ
+            type: u16
+          - id: value
+            size: self.len - 4
+          - id: padding
+            size: if len % 4  == 0 {0} else {(4 - self.len  % 4)}
+    seq:
+      - id: len
+        type: u16
+      - id: typ
+        type: u16
+      - id: value
+        size: if self.typ == 18 {0} else {self.len - 4} # link info
+      - id: link_info
+        type: subattr
+        size: self.len - 4
+        repeat: eos
+        if: self.typ == 18
+      - id: padding
+        size: if len % 4  == 0 {0} else {(4 - self.len  % 4)}
+seq:
+  - id: header
+    type: nlmsghdr
+# padding
+  - id: route
+    type: ifinfomsg
+    if: self.header.typ != libc::NLMSG_DONE as _ && self.header.typ != libc::NLMSG_ERROR as _
+# padding
+  - id: attributes
+    type: attr
+    repeat: eos
+    if: self.header.typ != libc::NLMSG_DONE as _ && self.header.typ != libc::NLMSG_ERROR as _
+    size: self.header.len - 32
+  - id: error
+    type: error
+    if: self.header.typ == libc::NLMSG_ERROR as _
+  - id: success
+    size: '4'
+    if: self.header.typ == libc::NLMSG_DONE as _
+  
